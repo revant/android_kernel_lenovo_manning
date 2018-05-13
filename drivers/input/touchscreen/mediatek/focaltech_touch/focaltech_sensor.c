@@ -2,7 +2,7 @@
  *
  * FocalTech TouchScreen driver.
  *
- * Copyright (c) 2010-2016, FocalTech Systems, Ltd., all rights reserved.
+ * Copyright (c) 2010-2017, FocalTech Systems, Ltd., all rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -14,261 +14,316 @@
  * GNU General Public License for more details.
  *
  */
+
 /*****************************************************************************
 *
-* File Name: focaltech_sensor.c
+* File Name: focaltech_esdcheck.c
 *
 *    Author: Focaltech Driver Team
 *
-*   Created: 2016-08-06
+*   Created: 2016-08-03
 *
-*  Abstract:
+*  Abstract: Sensor
 *
 *   Version: v1.0
 *
+* Revision History:
+*        v1.0:
+*            First release. By luougojin 2016-08-03
 *****************************************************************************/
 
+/*****************************************************************************
+* Included header files
+*****************************************************************************/
 #include "focaltech_core.h"
-#ifdef CONFIG_MTK_SENSOR_HUB_SUPPORT
-#include <mach/md32_ipi.h>
-#include <mach/md32_helper.h>
-#endif
 
-#define TPD_I2C_NUMBER                          0
+#if FTS_PSENSOR_EN
+/*****************************************************************************
+* Private constant and macro definitions using #define
+*****************************************************************************/
+/* psensor register address*/
+#define FTS_REG_PSENSOR_ENABLE                  0xB0
+#define FTS_REG_PSENSOR_STATUS                  0x01
 
-#ifdef CONFIG_MTK_SENSOR_HUB_SUPPORT
+/* psensor register bits*/
+#define FTS_PSENSOR_ENABLE_MASK                 0x01
+#define FTS_PSENSOR_STATUS_NEAR                 0xC0
+#define FTS_PSENSOR_STATUS_FAR                  0xE0
+#define FTS_PSENSOR_FAR_TO_NEAR                 0
+#define FTS_PSENSOR_NEAR_TO_FAR                 1
+#define FTS_PSENSOR_ORIGINAL_STATE_FAR          1
+#define FTS_PSENSOR_WAKEUP_TIMEOUT              500
 
-enum TOUCH_IPI_CMD_T {
-	/* SCP->AP */
-	IPI_COMMAND_SA_GESTURE_TYPE,
-	/* AP->SCP */
-	IPI_COMMAND_AS_CUST_PARAMETER,
-	IPI_COMMAND_AS_ENTER_DOZEMODE,
-	IPI_COMMAND_AS_ENABLE_GESTURE,
-	IPI_COMMAND_AS_GESTURE_SWITCH,
+/*****************************************************************************
+* Static variables
+*****************************************************************************/
+static struct sensors_classdev __maybe_unused sensors_proximity_cdev =
+{
+    .name = "fts-proximity",
+    .vendor = "FocalTech",
+    .version = 1,
+    .handle = SENSORS_PROXIMITY_HANDLE,
+    .type = SENSOR_TYPE_PROXIMITY,
+    .max_range = "5.0",
+    .resolution = "5.0",
+    .sensor_power = "0.1",
+    .min_delay = 0,
+    .fifo_reserved_event_count = 0,
+    .fifo_max_event_count = 0,
+    .enabled = 0,
+    .delay_msec = 200,
+    .sensors_enable = NULL,
+    .sensors_poll_delay = NULL,
 };
 
-struct Touch_Cust_Setting {
-	u32 i2c_num;
-	u32 int_num;
-	u32 io_int;
-	u32 io_rst;
-};
-
-struct Touch_IPI_Packet {
-	u32 cmd;
-	union {
-		u32 data;
-		struct Touch_Cust_Setting tcs;
-	} param;
-};
-
-static bool tpd_scp_doze_en = TRUE;
-
-static void tpd_scp_wakeup_enable(bool en)
+/*****************************************************************************
+* functions body
+*****************************************************************************/
+/*****************************************************************************
+*  Name: fts_psensor_support_enabled
+*  Brief:
+*  Input:
+*  Output:
+*  Return:
+*****************************************************************************/
+static inline bool fts_psensor_support_enabled(void)
 {
-	tpd_scp_doze_en = en;
+    /*return config_enabled(CONFIG_TOUCHSCREEN_FTS_PSENSOR);*/
+    return FTS_PSENSOR_EN;
 }
 
-ssize_t show_scp_ctrl(struct device *dev, struct device_attribute *attr,
-		      char *buf)
+/*****************************************************************************
+*  Name: fts_psensor_enable
+*  Brief:
+*  Input:
+*  Output:
+*  Return:
+*****************************************************************************/
+static void fts_psensor_enable(struct fts_ts_data *data, int enable)
 {
-	return 0;
+    u8 state;
+    int ret = -1;
+
+    if (data->client == NULL)
+        return;
+
+    fts_i2c_read_reg(data->client, FTS_REG_PSENSOR_ENABLE, &state);
+    if (enable)
+        state |= FTS_PSENSOR_ENABLE_MASK;
+    else
+        state &= ~FTS_PSENSOR_ENABLE_MASK;
+
+    ret = fts_i2c_write_reg(data->client, FTS_REG_PSENSOR_ENABLE, state);
+    if (ret < 0)
+        FTS_ERROR("write psensor switch command failed");
+    return;
 }
 
-ssize_t store_scp_ctrl(struct device *dev, struct device_attribute *attr,
-		       const char *buf, size_t size)
+/*****************************************************************************
+*  Name: fts_psensor_enable_set
+*  Brief:
+*  Input:
+*  Output:
+*  Return:
+*****************************************************************************/
+static int fts_psensor_enable_set(struct sensors_classdev *sensors_cdev,
+                                  unsigned int enable)
 {
-	u32 cmd;
-	Touch_IPI_Packet ipi_pkt;
+    struct fts_psensor_platform_data *psensor_pdata =
+        container_of(sensors_cdev,
+                     struct fts_psensor_platform_data, ps_cdev);
+    struct fts_ts_data *data = psensor_pdata->data;
+    struct input_dev *input_dev = data->psensor_pdata->input_psensor_dev;
 
-	if (kstrtoul(buf, 10, &cmd)) {
-		FTS_DEBUG("[SCP_CTRL]: Invalid values\n");
-		return -EINVAL;
-	}
-
-	FTS_DEBUG("SCP_CTRL: Command=%d", cmd);
-	switch (cmd) {
-	case 1:
-		/* make touch in doze mode */
-		tpd_scp_wakeup_enable(TRUE);
-		tpd_suspend(NULL);
-		break;
-	case 2:
-		tpd_resume(NULL);
-		break;
-/*	case 3:
-	// emulate in-pocket on
-	ipi_pkt.cmd = IPI_COMMAND_AS_GESTURE_SWITCH,
-	ipi_pkt.param.data = 1;
-	md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-	break;
-	case 4:
-	// emulate in-pocket off
-	ipi_pkt.cmd = IPI_COMMAND_AS_GESTURE_SWITCH,
-	ipi_pkt.param.data = 0;
-	md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-	break;*/
-	case 5:
-		{
-			Touch_IPI_Packet ipi_pkt;
-
-			ipi_pkt.cmd = IPI_COMMAND_AS_CUST_PARAMETER;
-			ipi_pkt.param.tcs.i2c_num = TPD_I2C_NUMBER;
-			ipi_pkt.param.tcs.int_num = CUST_EINT_TOUCH_PANEL_NUM;
-			ipi_pkt.param.tcs.io_int = TPD_RS;
-			ipi_pkt.param.tcs.io_rst = tpd_rst_gpio_number;
-			if (md32_ipi_send
-			    (IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0) < 0)
-				FTS_DEBUG("[TOUCH] IPI cmd failed (%d)\n",
-					  ipi_pkt.cmd);
-
-			break;
-		}
-	default:
-		FTS_DEBUG("[SCP_CTRL] Unknown command");
-		break;
-	}
-
-	return size;
+    mutex_lock(&input_dev->mutex);
+    fts_psensor_enable(data, enable);
+    psensor_pdata->tp_psensor_data = FTS_PSENSOR_ORIGINAL_STATE_FAR;
+    if (enable)
+        psensor_pdata->tp_psensor_opened = 1;
+    else
+        psensor_pdata->tp_psensor_opened = 0;
+    mutex_unlock(&input_dev->mutex);
+    return enable;
 }
 
-int fts_sensor_init(void)
+/*****************************************************************************
+*  Name: fts_read_tp_psensor_data
+*  Brief:
+*  Input:
+*  Output:
+*  Return:
+*****************************************************************************/
+static int fts_read_tp_psensor_data(struct fts_ts_data *data)
 {
-	int ret;
+    u8 psensor_status;
+    char tmp;
+    int ret = 1;
 
-	ret = get_md32_semaphore(SEMAPHORE_TOUCH);
-	if (ret < 0)
-		pr_err("[TOUCH] HW semaphore reqiure timeout\n");
+    fts_i2c_read_reg(data->client,
+                     FTS_REG_PSENSOR_STATUS, &psensor_status);
 
-	return 0;
+    tmp = data->psensor_pdata->tp_psensor_data;
+    if (psensor_status == FTS_PSENSOR_STATUS_NEAR)
+        data->psensor_pdata->tp_psensor_data =
+            FTS_PSENSOR_FAR_TO_NEAR;
+    else if (psensor_status == FTS_PSENSOR_STATUS_FAR)
+        data->psensor_pdata->tp_psensor_data =
+            FTS_PSENSOR_NEAR_TO_FAR;
+
+    if (tmp != data->psensor_pdata->tp_psensor_data)
+    {
+        FTS_ERROR("%s sensor data changed", __func__);
+        ret = 0;
+    }
+    return ret;
 }
 
-static s8 fts_sensor_enter_doze(struct i2c_client *client)
+
+int fts_sensor_read_data(struct fts_ts_data *data)
 {
-	s8 ret = -1;
-	s8 retry = 0;
-	char gestrue_on = 0x01;
-	char gestrue_data;
-	int i;
-
-	FTS_DEBUG("Entering doze mode...");
-
-	/* Enter gestrue recognition mode */
-	ret = fts_i2c_write_reg(i2c_client, FTS_REG_GESTURE_EN, gestrue_on);
-	if (ret < 0) {
-		FTS_ERROR("Failed to enter Doze %d", retry);
-		return ret;
-	}
-	msleep(30);
-
-	for (i = 0; i < 10; i++) {
-		fts_i2c_read_reg(i2c_client, FTS_REG_GESTURE_EN, &gestrue_data);
-		if (gestrue_data == 0x01) {
-			FTS_DEBUG("FTP has been working in doze mode!");
-			break;
-		}
-		msleep(20);
-		fts_i2c_write_reg(i2c_client, FTS_REG_GESTURE_EN, gestrue_on);
-
-	}
-
-	return ret;
+    int ret = 0;
+    if (fts_psensor_support_enabled() && data->psensor_pdata->tp_psensor_opened)
+    {
+        ret = fts_read_tp_psensor_data(data);
+        if ( !ret )
+        {
+            if (data->suspended)
+            {
+                pm_wakeup_event(&data->client->dev, FTS_PSENSOR_WAKEUP_TIMEOUT);
+            }
+            input_report_abs(data->psensor_pdata->input_psensor_dev,
+                             ABS_DISTANCE,
+                             data->psensor_pdata->tp_psensor_data);
+            input_sync(data->psensor_pdata->input_psensor_dev);
+        }
+        return 1;
+    }
+    return 0;
 }
 
-void fts_sensor_enable(struct i2c_client *client)
+int fts_sensor_suspend(struct fts_ts_data *data)
 {
-	int ret;
-	int data;
+    int ret = 0;
 
-	if (tpd_scp_doze_en) {
-		ret = get_md32_semaphore(SEMAPHORE_TOUCH);
-		if (ret < 0) {
-			FTS_DEBUG("[TOUCH] HW semaphore reqiure timeout\n");
-		} else {
-			Touch_IPI_Packet ipi_pkt = {
-				.cmd = IPI_COMMAND_AS_ENABLE_GESTURE,
-				.param.data = 0
-			};
+    if ( fts_psensor_support_enabled()  &&
+         device_may_wakeup(&data->client->dev) &&
+         data->psensor_pdata->tp_psensor_opened )
+    {
+        ret = enable_irq_wake(data->client->irq);
+        if ( ret != 0 )
+        {
+            FTS_ERROR("%s: set_irq_wake failed", __func__);
+        }
+        data->suspended = true;
+        return 1;
+    }
 
-			md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-		}
-	}
-
-	data = 0x00;
-	fts_i2c_write_reg(client, FTS_REG_GESTURE_EN, data);
+    return 0;
 }
 
-void fts_sensor_suspend(struct i2c_client *i2c_client)
+
+int fts_sensor_resume(struct fts_ts_data *data)
 {
-	int sem_ret;
+    int ret = 0;
 
-	int ret;
-	char gestrue_data;
-	static int scp_init_flag;
+    if ( fts_psensor_support_enabled()  &&
+         device_may_wakeup(&data->client->dev) && data->psensor_pdata->tp_psensor_opened )
+    {
+        ret = disable_irq_wake(data->client->irq);
+        if (ret)
+        {
+            FTS_ERROR("%s: disable_irq_wake failed",  __func__);
+        }
+        data->suspended = false;
+        return 1;
+    }
 
-	sem_ret = release_md32_semaphore(SEMAPHORE_TOUCH);
-
-	if (scp_init_flag == 0) {
-		Touch_IPI_Packet ipi_pkt;
-
-		ipi_pkt.cmd = IPI_COMMAND_AS_CUST_PARAMETER;
-		ipi_pkt.param.tcs.i2c_num = TPD_I2C_NUMBER;
-		ipi_pkt.param.tcs.int_num = CUST_EINT_TOUCH_PANEL_NUM;
-		ipi_pkt.param.tcs.io_int = tpd_int_gpio_number;
-		ipi_pkt.param.tcs.io_rst = tpd_rst_gpio_number;
-
-		FTS_DEBUG("[TOUCH]SEND CUST command :%d ",
-			  IPI_COMMAND_AS_CUST_PARAMETER);
-
-		ret = md32_ipi_send(IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt), 0);
-		if (ret < 0)
-			FTS_DEBUG(" IPI cmd failed (%d)\n", ipi_pkt.cmd);
-
-		msleep(20);	/* delay added between continuous command */
-		/* Workaround if suffer MD32 reset */
-		/* scp_init_flag = 1; */
-	}
-
-	if (tpd_scp_doze_en) {
-		FTS_DEBUG("[TOUCH]SEND ENABLE GES command :%d ",
-			  IPI_COMMAND_AS_ENABLE_GESTURE);
-		ret = fts_sensor_enter_doze(i2c_client);
-		if (ret < 0) {
-			FTS_DEBUG("FTP Enter Doze mode failed\n");
-		} else {
-			int retry = 5;
-			{
-				/* check doze mode */
-				fts_i2c_read_reg(i2c_client, FTS_REG_GESTURE_EN,
-						 &gestrue_data);
-				FTS_DEBUG("========================>0x%x",
-					  gestrue_data);
-			}
-
-			msleep(20);
-			Touch_IPI_Packet ipi_pkt = {.cmd =
-				    IPI_COMMAND_AS_ENABLE_GESTURE, .param.data =
-				    1
-			};
-
-			do {
-				if (md32_ipi_send
-				    (IPI_TOUCH, &ipi_pkt, sizeof(ipi_pkt),
-				     1) == DONE)
-					break;
-				msleep(20);
-				FTS_DEBUG("==>retry=%d", retry);
-			} while (retry--);
-
-			if (retry <= 0)
-				FTS_DEBUG
-				    ("############# md32_ipi_send failed retry=%d",
-				     retry);
-
-		}
-	}
-
+    return 0;
 }
 
-#endif
+
+int fts_sensor_init(struct fts_ts_data *data)
+{
+    struct fts_psensor_platform_data *psensor_pdata;
+    struct input_dev *psensor_input_dev;
+    int err;
+
+    if (fts_psensor_support_enabled() )
+    {
+        device_init_wakeup(&data->client->dev, 1);
+        psensor_pdata = devm_kzalloc(&data->client->dev,
+                                     sizeof(struct fts_psensor_platform_data),
+                                     GFP_KERNEL);
+        if (!psensor_pdata)
+        {
+            FTS_ERROR("Failed to allocate memory");
+            goto irq_free;
+        }
+        data->psensor_pdata = psensor_pdata;
+
+        psensor_input_dev = input_allocate_device();
+        if (!psensor_input_dev)
+        {
+            FTS_ERROR("Failed to allocate device");
+            goto free_psensor_pdata;
+        }
+
+        __set_bit(EV_ABS, psensor_input_dev->evbit);
+        input_set_abs_params(psensor_input_dev, ABS_DISTANCE, 0, 1, 0, 0);
+        psensor_input_dev->name = "proximity";
+        psensor_input_dev->id.bustype = BUS_I2C;
+        psensor_input_dev->dev.parent = &data->client->dev;
+        data->psensor_pdata->input_psensor_dev = psensor_input_dev;
+
+        err = input_register_device(psensor_input_dev);
+        if (err)
+        {
+            FTS_ERROR("Unable to register device, err=%d", err);
+            goto free_psensor_input_dev;
+        }
+
+        psensor_pdata->ps_cdev = sensors_proximity_cdev;
+        psensor_pdata->ps_cdev.sensors_enable = fts_psensor_enable_set;
+        psensor_pdata->data = data;
+
+        err = sensors_classdev_register(&data->client->dev, &psensor_pdata->ps_cdev);
+        if (err)
+        {
+            goto unregister_psensor_input_device;
+        }
+    }
+
+    return 0;
+unregister_psensor_input_device:
+    if (fts_psensor_support_enabled() )
+        input_unregister_device(data->psensor_pdata->input_psensor_dev);
+free_psensor_input_dev:
+    if (fts_psensor_support_enabled() )
+        input_free_device(data->psensor_pdata->input_psensor_dev);
+free_psensor_pdata:
+    if (fts_psensor_support_enabled() )
+    {
+        devm_kfree(&data->client->dev, psensor_pdata);
+        data->psensor_pdata = NULL;
+    }
+irq_free:
+    if (fts_psensor_support_enabled())
+        device_init_wakeup(&data->client->dev, 0);
+    free_irq(data->client->irq, data);
+
+    return 1;
+}
+
+int fts_sensor_remove(struct fts_ts_data *data)
+{
+    if (fts_psensor_support_enabled() )
+    {
+        device_init_wakeup(&data->client->dev, 0);
+        sensors_classdev_unregister(&data->psensor_pdata->ps_cdev);
+        input_unregister_device(data->psensor_pdata->input_psensor_dev);
+        devm_kfree(&data->client->dev, data->psensor_pdata);
+        data->psensor_pdata = NULL;
+    }
+    return 0;
+}
+#endif  /* FTS_PSENSOR_EN */

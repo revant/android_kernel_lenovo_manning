@@ -1,5 +1,5 @@
 /************************************************************************
-* Copyright (C) 2012-2015, Focaltech Systems (R)£¬All Rights Reserved.
+* Copyright (C) 2012-2017, Focaltech Systems (R)£¬All Rights Reserved.
 *
 * File Name: focaltech_test_ini.h
 *
@@ -17,7 +17,7 @@
 #define MAX_KEY_NAME_LEN                50
 #define MAX_KEY_VALUE_LEN               360
 
-#define MAX_CFG_BUF                     480	/* 512 */
+#define MAX_CFG_BUF                     480//512
 #define SUCCESS                         0
 /* return value */
 #define CFG_OK                          SUCCESS
@@ -41,20 +41,24 @@
 #define COPYF_ERR_READ_FILE             -12
 #define COPYF_ERR_WRITE_FILE            -13
 
-typedef struct _ST_INI_FILE_DATA {
-	char pSectionName[MAX_KEY_NAME_LEN];
-	char pKeyName[MAX_KEY_NAME_LEN];
-	char pKeyValue[MAX_KEY_VALUE_LEN];
-	int iSectionNameLen;
-	int iKeyNameLen;
-	int iKeyValueLen;
+typedef struct _ST_INI_FILE_DATA
+{
+    char pSectionName[MAX_KEY_NAME_LEN];
+    char pKeyName[MAX_KEY_NAME_LEN];
+    char pKeyValue[MAX_KEY_VALUE_LEN];
+    int iSectionNameLen;
+    int iKeyNameLen;
+    int iKeyValueLen;
 } ST_INI_FILE_DATA;
 
-int ini_get_key(char *filedata, char *section, char *key, char *value);
+
+
+int ini_get_key(char *filedata, char * section, char * key, char * value);
+
 
 int fts_atoi(char *nptr);
-char *ini_str_trim_r(char *buf);
-char *ini_str_trim_l(char *buf);
+char * ini_str_trim_r(char * buf);
+char * ini_str_trim_l(char * buf);
 
 int init_key_data(void);
 int ini_get_key_data(char *filedata);
