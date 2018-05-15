@@ -613,9 +613,6 @@ extern int is_mt6311_sw_ready(void);
 
 extern void hw_charging_enable_dp_voltage(int ison);
 
-#ifdef CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS
-extern void tpd_usb_plugin(int plugin);
-#endif
 /* For RT5735A SDA low workaround */
 extern void battery_disable_batfet(void);
 /* switch charger */

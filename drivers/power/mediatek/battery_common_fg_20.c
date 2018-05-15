@@ -119,10 +119,6 @@
 #include <mach/mt_pe.h>
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS
-bool tpd_usb_charging_flag = true;
-#endif
-
 /* ////////////////////////////////////////////////////////////////////////////// */
 /* Battery Logging Entry */
 /* ////////////////////////////////////////////////////////////////////////////// */
@@ -475,13 +471,6 @@ kal_bool upmu_is_chr_det(void)
 #if !defined(CONFIG_MTK_DUAL_INPUT_CHARGER_SUPPORT)
 	if (mt_usb_is_device()) {
 		battery_log(BAT_LOG_FULL, "[upmu_is_chr_det] Charger exist and USB is not host\n");
-
-#ifdef CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS
-		if (tpd_usb_charging_flag) {
-			tpd_usb_plugin(1);
-			tpd_usb_charging_flag = false;
-		}
-#endif
 
 		return KAL_TRUE;
 	}
@@ -2978,13 +2967,6 @@ void do_chrdet_int_task(void)
 
 			wake_lock(&battery_suspend_lock);
 
-#ifdef CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS
-			if (tpd_usb_charging_flag) {
-				tpd_usb_plugin(1);
-				tpd_usb_charging_flag = false;
-			}
-#endif
-
 #if defined(CONFIG_POWER_EXT)
 			mt_usb_connect();
 			battery_log(BAT_LOG_CRTI,
@@ -3000,13 +2982,6 @@ void do_chrdet_int_task(void)
 		} else {
 			battery_log(BAT_LOG_CRTI, "[do_chrdet_int_task] charger NOT exist!\n");
 			BMT_status.charger_exist = KAL_FALSE;
-
-#ifdef CONFIG_TOUCHSCREEN_MTK_FOCALTECH_TS
-			if (!tpd_usb_charging_flag) {
-				tpd_usb_plugin(0);
-				tpd_usb_charging_flag = true;
-			}
-#endif
 
 			bq2589x_set_dpdm(0);
 			bq25890_config_interface(bq25890_CON2, 0x0, 0x1, 1);
