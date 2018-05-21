@@ -1,16 +1,3 @@
-/*
- * Copyright (C) 2015 MediaTek Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- */
-
 #ifndef _MT_SPM_IDLE_
 #define _MT_SPM_IDLE_
 
@@ -56,7 +43,7 @@ int spm_set_dpidle_wakesrc(u32 wakesrc, bool enable, bool replace);
 bool spm_set_dpidle_pcm_init_flag(void);
 
 #if defined(CONFIG_ARCH_MT6797)
-void set_vcorefs_fw_mode(void);
+void set_sodi_fw_mode(u32 sodi_fw);
 u32 get_vcorefs_fw_mode(void);
 #endif
 
@@ -80,13 +67,16 @@ wake_reason_t spm_go_to_sodi(u32 spm_flags, u32 spm_data, u32 sodi_flags);
 void spm_enable_sodi(bool);
 bool spm_get_sodi_en(void);
 
+#if defined(CONFIG_ARCH_MT6797)
 void spm_sodi_set_vdo_mode(bool vdo_mode);
 bool spm_get_cmd_mode(void);
+#endif
+
 void spm_sodi_mempll_pwr_mode(bool pwr_mode);
 bool spm_get_sodi_mempll(void);
 
 enum mt_sodi_flag {
-	SODI_FLAG_3P0         = (1 << 0),
+	SODI_FLAG_V3          = (1 << 0),
 	SODI_FLAG_RESIDENCY   = (1 << 1),
 	SODI_FLAG_REDUCE_LOG  = (1 << 2),
 	SODI_FLAG_NO_LOG      = (1 << 3),

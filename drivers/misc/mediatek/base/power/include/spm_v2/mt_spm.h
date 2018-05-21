@@ -22,20 +22,13 @@ extern void __iomem *spm_base;
 extern void __iomem *spm_infracfg_ao_base;
 extern void __iomem *spm_cksys_base;
 extern void __iomem *spm_mcucfg;
-#if defined(CONFIG_ARCH_MT6755) || defined(CONFIG_ARCH_MT6757)
+#if defined(CONFIG_ARCH_MT6755)
 extern void __iomem *spm_bsi1cfg;
 #elif defined(CONFIG_ARCH_MT6797)
 extern void __iomem *spm_infracfg_base;
 extern void __iomem *spm_apmixed_base;
 #endif
-#if defined(CONFIG_ARCH_MT6757)
-extern void __iomem *spm_dramc_ch0_top0_base;
-extern void __iomem *spm_dramc_ch0_top1_base;
-extern void __iomem *spm_dramc_ch1_top0_base;
-extern void __iomem *spm_dramc_ch1_top1_base;
-#else
 extern void __iomem *spm_ddrphy_base;
-#endif
 extern u32 spm_irq_0;
 extern u32 spm_irq_1;
 extern u32 spm_irq_2;
@@ -50,11 +43,6 @@ extern u32 spm_irq_7;
 #define SPM_THERMAL_TIMER  23	/* 2 ^ (SPM_THERMAL_TIMER-15) second */
 /* #include <mach/mt_irq.h> */
 #include <mt-plat/sync_write.h>
-
-#if defined(CONFIG_ARCH_MT6797)
-/* for SPM/SCP debug */
-extern u32 is_check_scp_freq_req(void);
-#endif
 
 /**************************************
  * Config and Parameter
@@ -78,6 +66,12 @@ typedef enum {
 	WR_WAKE_SRC = 4,
 	WR_UNKNOWN = 5,
 } wake_reason_t;
+
+enum mt_sodi_fw {
+	SODI_FW_LPM	= (1 << 0),	/*  1600/1.0  : 1270/0.9 : 1066/0.9 */
+	SODI_FW_HPM	= (1 << 1),	/*  1700/1.0  : 1270/0.9 : 1066/0.9 */
+	SODI_FW_ULTRA	= (1 << 2),	/*  1866/1.05 : 1600/1.0 : 1270/0.9 */
+};
 
 enum mt_vcorefs_fw {
 	VCOREFS_FW_LPM	 = (1 << 0),	/*  1600/1.0  : 1270/0.9 : 1066/0.9 */
@@ -131,15 +125,12 @@ enum {
 };
 void spm_pmic_power_mode(int mode, int force, int lock);
 void spm_bypass_boost_gpio_set(void);
-void spm_vmd_sel_gpio_set(void);
+
 #if defined(CONFIG_ARCH_MT6797)
 /* for SPM/SCP debug */
 extern u32 is_check_scp_freq_req(void);
 bool spm_save_thermal_adc(void);
 #endif
-
-extern void unmask_edge_trig_irqs_for_cirq(void);
-
 /**************************************
  * Macro and Inline
  **************************************/
