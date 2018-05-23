@@ -208,8 +208,7 @@ static int ovl_readlink(struct dentry *dentry, char __user *buf, int bufsiz)
 	return realinode->i_op->readlink(realpath.dentry, buf, bufsiz);
 }
 
-
-static bool ovl_is_private_xattr(const char *name)
+bool ovl_is_private_xattr(const char *name)
 {
 	return strncmp(name, "trusted.overlay.", 14) == 0;
 }
@@ -259,12 +258,23 @@ ssize_t ovl_getxattr(struct dentry *dentry, const char *name,
 	return vfs_getxattr(realpath.dentry, name, value, size);
 }
 
+static bool ovl_can_list(const char *s)
+{
+	/* List all non-trusted xatts */
+	if (strncmp(s, XATTR_TRUSTED_PREFIX, XATTR_TRUSTED_PREFIX_LEN) != 0)
+		return true;
+
+	/* Never list trusted.overlay, list other trusted for superuser only */
+	return !ovl_is_private_xattr(s) && capable(CAP_SYS_ADMIN);
+}
+
 ssize_t ovl_listxattr(struct dentry *dentry, char *list, size_t size)
 {
 	struct path realpath;
 	enum ovl_path_type type = ovl_path_real(dentry, &realpath);
 	ssize_t res;
-	int off;
+	size_t len;
+	char *s;
 
 	res = vfs_listxattr(realpath.dentry, list, size);
 	if (res <= 0 || size == 0)
@@ -274,17 +284,19 @@ ssize_t ovl_listxattr(struct dentry *dentry, char *list, size_t size)
 		return res;
 
 	/* filter out private xattrs */
-	for (off = 0; off < res;) {
-		char *s = list + off;
-		size_t slen = strlen(s) + 1;
+	for (s = list, len = res; len;) {
+		size_t slen = strnlen(s, len) + 1;
 
-		BUG_ON(off + slen > res);
+		/* underlying fs providing us with an broken xattr list? */
+		if (WARN_ON(slen > len))
+			return -EIO;
 
-		if (ovl_is_private_xattr(s)) {
+		len -= slen;
+		if (!ovl_can_list(s)) {
 			res -= slen;
-			memmove(s, s + slen, res - off);
+			memmove(s, s + slen, len);
 		} else {
-			off += slen;
+			s += slen;
 		}
 	}
 

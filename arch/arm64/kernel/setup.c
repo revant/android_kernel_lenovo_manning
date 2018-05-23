@@ -80,7 +80,7 @@ unsigned int compat_elf_hwcap __read_mostly = COMPAT_ELF_HWCAP_DEFAULT;
 unsigned int compat_elf_hwcap2 __read_mostly;
 #endif
 
-DECLARE_BITMAP(cpu_hwcaps, ARM64_NCAPS);
+DECLARE_BITMAP(cpu_hwcaps, NCAPS);
 
 static const char *cpu_name;
 static const char *machine_name;
@@ -478,8 +478,7 @@ static const char *compat_hwcap_str[] = {
 	"idivt",
 	"vfpd32",
 	"lpae",
-	"evtstrm",
-	NULL
+	"evtstrm"
 };
 
 static const char *compat_hwcap2_str[] = {
