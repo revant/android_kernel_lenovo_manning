@@ -13,11 +13,12 @@ CFLAGS_REMOVE_ftrace.o = -pg
 CFLAGS_REMOVE_insn.o = -pg
 CFLAGS_REMOVE_return_address.o = -pg
 
-ccflags-y += -Idrivers/misc/mediatek/mtprof/
-ccflags-y += -Idrivers/misc/mediatek/include/
-ccflags-y += -Idrivers/misc/mediatek/power/
-ccflags-y += -Idrivers/watchdog/mediatek/include/
-ccflags-y += -Idrivers/watchdog/mediatek/wdt/
+ccflags-y += -I$(srctree)/arch/arm64/include
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/mtprof/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/power/
+ccflags-y += -I$(srctree)/drivers/watchdog/mediatek/include/
+ccflags-y += -I$(srctree)/drivers/watchdog/mediatek/wdt/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/hibcore
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/

@@ -17,7 +17,7 @@
 #include <asm/insn.h>
 #include <asm/opcodes.h>
 #include <asm/system_misc.h>
-#include <asm/traps.h>
+#include "asm/traps.h"
 #include <asm/uaccess.h>
 #include <asm/cpufeature.h>
 

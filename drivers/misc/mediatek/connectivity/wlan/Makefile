@@ -15,6 +15,8 @@ ccflags-y += \
 	-I$(src)/../common/common_main/include \
 	-I$(src)/../common/common_main/linux/include
 
+ccflags-y += -Wno-error
+
 obj-$(CONFIG_MTK_COMBO_WIFI) += wmt_chrdev_wifi.o
 
 #########################################################

@@ -98,31 +98,6 @@ static inline void gic_write_dir(u32 irq)
 	isb();
 }
 
-static inline u64 gic_read_iar(void)
-{
-	u64 irqstat;
-
-	asm volatile("mrs_s %0, " __stringify(ICC_IAR1_EL1) : "=r" (irqstat));
-	return irqstat;
-}
-
-static inline void gic_write_pmr(u32 val)
-{
-	asm volatile("msr_s " __stringify(ICC_PMR_EL1) ", %0" : : "r" ((u64)val));
-}
-
-static inline void gic_write_ctlr(u32 val)
-{
-	asm volatile("msr_s " __stringify(ICC_CTLR_EL1) ", %0" : : "r" ((u64)val));
-	isb();
-}
-
-static inline void gic_write_grpen1(u32 val)
-{
-	asm volatile("msr_s " __stringify(ICC_GRPEN1_EL1) ", %0" : : "r" ((u64)val));
-	isb();
-}
-
 static inline void gic_write_sgi1r(u64 val)
 {
 	asm volatile("msr_s " __stringify(ICC_SGI1R_EL1) ", %0" : : "r" (val));
